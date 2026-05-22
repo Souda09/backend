@@ -25,7 +25,7 @@ app.use(cookieParser())
 console.log(cookieParser())
 app.use(cors({
     
-    origin:[ 'http://localhost:5173',
+    origin:[ 'http://localhost:5174',
     "https://frontend-rho-rosy-29.vercel.app"],
 
     credentials: true
