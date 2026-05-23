@@ -342,4 +342,39 @@ const logout = (req, res) => {
     }
 };
 
-export default { addUser, loginUser, logout };
+
+// admin
+// Temporary function to make any user an admin
+const makeAdmin = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ status: false, message: "Email is required" });
+        }
+
+        // Database mein user ko dhoond kar uska role 'admin' kar dega
+        const updatedUser = await Users.findOneAndUpdate(
+            { email: email },
+            { role: 'admin' },
+            { new: true } // Yeh updated data return karega
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ status: false, message: "User not found with this email" });
+        }
+
+        return res.status(200).json({
+            status: true,
+            message: `Success! ${email} is now an ADMIN. 🚀`,
+            user: updatedUser
+        });
+
+    } catch (error) {
+        return res.status(500).json({ status: false, message: error.message });
+    }
+};
+
+// Phir export mein isko add kar dein
+export default { addUser, loginUser, logout, makeAdmin };
+

@@ -40,7 +40,7 @@ const authroute = express.Router();
 authroute.post('/user', authController.addUser);
 authroute.post('/login', authController.loginUser);
 authroute.get('/logout', authController.logout);
-
+authroute.post("/make-admin", authController.makeAdmin);
 // ==========================================
 // 2. PROTECTED ROUTES (For Users & Admins)
 // ==========================================
