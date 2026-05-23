@@ -177,11 +177,14 @@ import Users from "../models/UserSchema.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
-// register user
+// ==========================================
+// REGISTER USER
+// ==========================================
 const addUser = async (req, res) => {
     const { name, email, password, role } = req.body;
 
     try {
+        // 1. Validation
         if (!name || !email || !password) {
             return res.status(400).json({
                 status: false,
@@ -189,42 +192,50 @@ const addUser = async (req, res) => {
             });
         }
 
+        // 2. Hash password
         const hashpass = await bcrypt.hash(password, 10);
 
-        const data1 = {
+        // 3. Create user instance
+        const newUser = new Users({
             name,
             email,
             password: hashpass,
-            role: role || 'user' // Agar role nahi bheja toh default 'user'
+            role: role || 'user'
+        });
+
+        const savedUser = await newUser.save();
+
+        // 4. Safe user object creation (Without Password)
+        const safeUser = {
+            _id: savedUser._id,
+            name: savedUser.name,
+            email: savedUser.email,
+            role: savedUser.role
         };
 
-        const user = new Users(data1);
-        const data = await user.save();
-
-        // Safe client object banayein bina password ke
-        const safeUser = data.toObject();
-        delete safeUser.password;
-
-        res.status(201).json({
+        return res.status(201).json({
             status: true,
             message: "User created successfully 🎉",
             user: safeUser
         });
 
     } catch (error) {
-        console.log("Error in creating user --->", error);
-        res.status(500).json({
+        console.error("Error in creating user --->", error);
+        return res.status(500).json({
             status: false,
-            message: error.message
+            message: "Server Error: " + error.message
         });
     }
 };
 
-// login user
+// ==========================================
+// LOGIN USER
+// ==========================================
 const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
 
+        // 1. Validation
         if (!email || !password) {
             return res.status(400).json({
                 status: false,
@@ -232,6 +243,7 @@ const loginUser = async (req, res) => {
             });
         }
 
+        // 2. Find user in Database
         const user = await Users.findOne({ email });
 
         if (!user) {
@@ -241,28 +253,44 @@ const loginUser = async (req, res) => {
             });
         }
 
-        const decoded = await bcrypt.compare(password, user.password);
+        // 3. Verify Password
+        const isMatch = await bcrypt.compare(password, user.password);
 
-        if (decoded) {
+        if (isMatch) {
+            // 4. Check JWT Secret Guard (To prevent 500 crashes)
+            if (!process.env.JWT_SECRET) {
+                console.error("CRITICAL ERROR: process.env.JWT_SECRET is not defined! Check Vercel Env Settings.");
+                return res.status(500).json({
+                    status: false,
+                    message: "Database setup error: JWT Secret is missing from server env."
+                });
+            }
+
+            // 5. Generate JWT Token
             const token = jwt.sign(
                 {
                     id: user._id,
                     email: user.email,
-                    role: user.role
+                    role: user.role || 'user'
                 },
                 process.env.JWT_SECRET,
-                { expiresIn: '24h' } // Token expiry standard practice hai
+                { expiresIn: '24h' }
             );
 
+            // 6. Set Browser Cookie safely for Cross-Origin deployment (Vercel)
             res.cookie("token", token, {
                 httpOnly: true,
-                secure: true,
-                sameSite: 'none' // Vercel deployment par cross-site cookies ke liye zaroori hai
+                secure: true, 
+                sameSite: 'none' 
             });
 
-            // Password frontend par bhejney ki zaroorat nahi hoti
-            const safeUser = user.toObject();
-            delete safeUser.password;
+            // 7. Clean User Object (No password data sent to frontend)
+            const safeUser = {
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role || 'user'
+            };
 
             console.log(`User Logged In Successfully: ${safeUser.email} [Role: ${safeUser.role}] 🚀`);
 
@@ -274,7 +302,7 @@ const loginUser = async (req, res) => {
             });
 
         } else {
-            return res.status(401).json({ // 401 Unauthorized password ke liye best hai
+            return res.status(401).json({ 
                 status: false,
                 message: "Invalid credentials",
             });
@@ -282,26 +310,34 @@ const loginUser = async (req, res) => {
 
     } catch (error) {
         console.error("Error during login backend:", error);
-        res.status(500).json({
+        return res.status(500).json({
             status: false,
-            message: error.message
+            message: "Internal Server Error: " + error.message
         });
     }
 };
 
-// logout user
+// ==========================================
+// LOGOUT USER
+// ==========================================
 const logout = (req, res) => {
     try {
-        res.clearCookie("token");
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none'
+        });
+        
         console.log("Logout success 🛑");
-        res.status(200).json({
+        return res.status(200).json({
             status: true,
             message: "User logout successfully",
         });
     } catch (error) {
-        res.status(500).json({
+        console.error("Error during logout:", error);
+        return res.status(500).json({
             status: false,
-            message: error.message,
+            message: "Logout failed: " + error.message,
         });
     }
 };
